@@ -22,3 +22,10 @@ type ViewRenderException struct {
 	Name string
 	Data any
 }
+
+type RegisterException struct {
+	contracts.Exception
+
+	Name     string
+	Template string
+}

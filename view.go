@@ -7,26 +7,71 @@ import (
 	"github.com/goal-web/supports/exceptions"
 	"github.com/goal-web/supports/logs"
 	"github.com/goal-web/supports/utils"
+	"path/filepath"
+	"strings"
 	"sync"
 )
 
 type View struct {
 	templates map[string]*pongo2.Template
 
+	path string
+
 	mutex sync.Mutex
 }
 
-func NewView() contracts.Views {
+func (v *View) Register(name, template string) {
+	tpl, err := pongo2.FromString(template)
+
+	if err != nil {
+		logs.Default().
+			WithField("name", name).
+			WithError(err).
+			WithField("template", template).
+			Debug(fmt.Sprintf("Failed to parse template: %s", err))
+
+		panic(RegisterException{
+			Exception: exceptions.WithError(err),
+			Name:      name,
+			Template:  template,
+		})
+	}
+
+	v.mutex.Lock()
+	v.templates[name] = tpl
+	v.mutex.Unlock()
+}
+
+func NewView(path string) contracts.Views {
 	return &View{
 		templates: make(map[string]*pongo2.Template),
+		path:      path,
 	}
 }
 
-func (v *View) Render(name string, data any) contracts.HttpResponse {
-	var err error
+func (v *View) Render(name string, data ...any) contracts.HttpResponse {
+	context, err := utils.ToFields(utils.DefaultValue(data, any(contracts.Fields{})))
+	if err != nil {
+		logs.Default().
+			WithField("name", name).
+			WithField("data", data).
+			Debug(fmt.Sprintf("Failed to parse data: %s", err.Error()))
+		panic(DataInvalidException{
+			Exception: exceptions.WithError(err),
+			Name:      name,
+			Data:      data,
+		})
+	}
+
 	tpl, exists := v.templates[name]
 	if !exists {
-		tpl, err = pongo2.FromFile(name)
+		viewPath := name
+		if !strings.HasPrefix(name, "/") {
+			viewPath = filepath.Join(v.path, name)
+		}
+
+		tpl, err = pongo2.FromFile(viewPath)
+
 		if err != nil {
 			logs.Default().
 				WithField("name", name).
@@ -38,23 +83,10 @@ func (v *View) Render(name string, data any) contracts.HttpResponse {
 				Data:      data,
 			})
 		}
+
 		v.mutex.Lock()
 		v.templates[name] = tpl
 		v.mutex.Unlock()
-	}
-
-	context, err := utils.ToFields(data)
-
-	if err != nil {
-		logs.Default().
-			WithField("name", name).
-			WithField("data", data).
-			Debug(fmt.Sprintf("Failed to parse data: %s", err.Error()))
-		panic(DataInvalidException{
-			Exception: exceptions.WithError(err),
-			Name:      name,
-			Data:      data,
-		})
 	}
 
 	output, err := tpl.Execute(pongo2.Context(context))
@@ -69,5 +101,5 @@ func (v *View) Render(name string, data any) contracts.HttpResponse {
 			Data:      data,
 		})
 	}
-	return &Response{bytes: []byte(output)}
+	return NewResponse([]byte(output))
 }

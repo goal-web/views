@@ -12,8 +12,9 @@ type ServiceProvider struct {
 }
 
 func (s ServiceProvider) Register(app contracts.Application) {
-	app.Singleton("view", func() contracts.Views {
-		return NewView()
+	app.Singleton("view", func(config contracts.Config) contracts.Views {
+		conf, _ := config.Get("views").(Config)
+		return NewView(conf.Path)
 	})
 }
 
