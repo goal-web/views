@@ -1,6 +1,7 @@
 package views
 
 import (
+	"github.com/goal-web/application"
 	"github.com/goal-web/contracts"
 )
 
@@ -14,7 +15,7 @@ type ServiceProvider struct {
 func (s ServiceProvider) Register(app contracts.Application) {
 	app.Singleton("view", func(config contracts.Config) contracts.Views {
 		conf, _ := config.Get("views").(Config)
-		return NewView(conf.Path)
+		return NewView(conf.Path, config.Get("app").(application.Config).Debug)
 	})
 }
 

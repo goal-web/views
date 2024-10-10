@@ -14,6 +14,7 @@ import (
 
 type View struct {
 	templates map[string]*pongo2.Template
+	debug     bool
 
 	path string
 
@@ -42,10 +43,11 @@ func (v *View) Register(name, template string) {
 	v.mutex.Unlock()
 }
 
-func NewView(path string) contracts.Views {
+func NewView(path string, debug bool) contracts.Views {
 	return &View{
 		templates: make(map[string]*pongo2.Template),
 		path:      path,
+		debug:     debug,
 	}
 }
 
@@ -84,9 +86,11 @@ func (v *View) Render(name string, data ...any) contracts.HttpResponse {
 			})
 		}
 
-		v.mutex.Lock()
-		v.templates[name] = tpl
-		v.mutex.Unlock()
+		if !v.debug {
+			v.mutex.Lock()
+			v.templates[name] = tpl
+			v.mutex.Unlock()
+		}
 	}
 
 	output, err := tpl.Execute(pongo2.Context(context))
